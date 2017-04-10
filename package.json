@@ -11,7 +11,7 @@
         "Other"
     ],
     "activationEvents": [
-        "onCommand:extension.pickEggProcess"
+        "onLanguage:javascript"
     ],
     "main": "./out/src/extension",
     "contributes": {
