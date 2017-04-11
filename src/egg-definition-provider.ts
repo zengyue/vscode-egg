@@ -2,7 +2,13 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { DefinitionProvider, TextDocument, Position, CancellationToken, Location, Range, Uri, workspace } from 'vscode';
+import * as ts from 'typescript';
+import {
+  DefinitionProvider, TextDocument, Position,
+  CancellationToken, Location, Range,
+  Uri, workspace,
+} from 'vscode';
+import { TypescriptSyntaxParser } from './typescript-syntax-parser';
 
 function findWorkPath(dir) {
   const fileName = path.join(dir, 'package.json');
@@ -47,8 +53,7 @@ export class EggDefinitionProvider {
     });
     return filepath;
   }
-  public provideDefinition(document: TextDocument, position: Position, token: CancellationToken):
-    Thenable<Location> {
+  public async provideDefinition(document: TextDocument, position: Position, token: CancellationToken) {
       // const lineText = document.lineAt(position).text;
       // 获取Definition所在的语句
       const statementRange = document.getWordRangeAtPosition(position, /([\w\.]+)/);
@@ -58,6 +63,7 @@ export class EggDefinitionProvider {
       // 获取语句开始到definition单词的位置
       const range = new Range(statementRange.start, wordRange.end);
       const definitionStatement = document.getText(range);
+      const definitionWord = document.getText(wordRange);
       // 判断定位的位置是个方法还是类实例
       const isMethod = statementRange.end.isEqual(wordRange.end) ? true : false;
       // 获取项目根目录，默认package.json所在的目录为根目录
@@ -65,8 +71,35 @@ export class EggDefinitionProvider {
 
       const fullpath = this.getFilePath(rootPath, definitionStatement, isMethod);
       if (!fullpath) {
-        return Promise.resolve(null);
+        return null;
       }
-      return Promise.resolve(new Location(Uri.file(fullpath), new Position(0, 0)));
+      if (!isMethod) {
+        return new Location(Uri.file(fullpath), new Position(0, 0));
+      }
+      const sourceFile = await TypescriptSyntaxParser.parseSourceFile(fullpath);
+      if (!sourceFile) return null;
+      
+      const recursiveSyntaxKinds = [ts.SyntaxKind.ClassDeclaration, ts.SyntaxKind.Constructor];
+      const foundNode = TypescriptSyntaxParser.findNode<ts.Declaration>(sourceFile, (node) => {
+        let declaration = node as ts.Declaration;
+        switch (node.kind) {
+          case ts.SyntaxKind.PropertyDeclaration:
+          case ts.SyntaxKind.MethodDeclaration:
+          case ts.SyntaxKind.GetAccessor:
+          case ts.SyntaxKind.SetAccessor:
+            return declaration.name.getText() === definitionWord;
+          case ts.SyntaxKind.Parameter:
+            const publicAccessor = TypescriptSyntaxParser.findNode(node, (cn) => cn.kind === ts.SyntaxKind.PublicKeyword);
+            return node.parent.kind == ts.SyntaxKind.Constructor
+              && declaration.name.getText() === definitionWord
+              && !!publicAccessor;
+        }
+        return false;
+      }, recursiveSyntaxKinds);
+
+      if (!foundNode) return null;
+      const declarationPos = TypescriptSyntaxParser.parsePosition(sourceFile, foundNode.name.getStart());
+      if (!declarationPos) return null;
+      return new Location(Uri.file(fullpath), declarationPos);
   }
 }

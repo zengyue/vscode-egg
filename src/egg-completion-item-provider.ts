@@ -5,7 +5,6 @@ import { CompletionItemProvider, TextDocument, Position, CancellationToken, Comp
 export class EggCompletionItemProvider implements CompletionItemProvider {
   public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken)
     : Thenable<CompletionItem[]> {
-      console.log('provideCompletionItems 激活');
       const textCurrentLine = document.getText(document.lineAt(position).range);
       console.log(textCurrentLine);
       return Promise.reject(null);

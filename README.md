@@ -1,6 +1,6 @@
-# egg-vscode README
+# egg README
 
-This is the README for your extension "egg-vscode". After writing up a brief description, we recommend including the following sections.
+This is the README for your extension "vscode-egg". After writing up a brief description, we recommend including the following sections.
 
 ## Features
 
